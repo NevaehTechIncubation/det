@@ -1,3 +1,4 @@
+from pathlib import Path
 import torch
 
 from torch.utils.data import DataLoader
@@ -7,10 +8,9 @@ from torchvision import transforms, datasets
 from loss import YOLOLoss
 from model import YOLO
 
-# Define transformations (resize and normalize images)
 image_transforms = transforms.Compose(
     [
-        transforms.Resize((416, 416)),
+        transforms.Resize((640, 640)),
         transforms.ToTensor(),
         transforms.Normalize(
             [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
@@ -18,45 +18,37 @@ image_transforms = transforms.Compose(
     ]
 )
 
-model = YOLO(num_classes=20)  # Change num_classes as needed
-criterion = YOLOLoss(S=13, B=1, num_classes=20)
+model = YOLO(num_classes=16)  # Change num_classes as needed
+criterion = YOLOLoss(S=20, B=1, num_classes=16)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-# Training loop
 num_epochs = 10
 
-# Example usage
 dataset = YOLODataset(
-    images=["path/to/image1.jpg", "path/to/image2.jpg"],
-    annotations=[
-        torch.tensor([[0.5, 0.5, 0.2, 0.3, 0], [0.2, 0.8, 0.1, 0.1, 1]]),
-        torch.tensor([[0.3, 0.4, 0.1, 0.2, 2]]),
-    ],
+    image_dir=Path("/home/sayandip-dutta/github/pylang/det/dataset_dir/images/train"),
+    annotation_dir=Path(
+        "/home/sayandip-dutta/github/pylang/det/dataset_dir/labels/train"
+    ),
     image_size=(640, 640),
     S=20,
-    num_classes=3,
+    num_classes=16,
     transform=image_transforms,  # Define transforms like resizing and normalization
 )
 
 dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 
-# Training loop
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
 
-    # Preprocessed targets directly from the DataLoader
     for images, targets in dataloader:
         images = images.to("cuda" if torch.cuda.is_available() else "cpu")
         targets = targets.to("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Forward pass
         predictions = model(images)
 
-        # Compute loss
         loss = criterion(predictions, targets)
 
-        # Backpropagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

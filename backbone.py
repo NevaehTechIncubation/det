@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 
-# Define a convolutional block that includes Convolution -> BatchNorm -> LeakyReLU activation.
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
         super(ConvBlock, self).__init__()
@@ -24,12 +23,10 @@ class ConvBlock(nn.Module):
         return out
 
 
-# Define the YOLO Backbone network
 class YOLOBackbone(nn.Module):
     def __init__(self):
         super(YOLOBackbone, self).__init__()
 
-        # Layer 1: Initial convolution and downsampling (using MaxPool for spatial reduction)
         self.layer1 = nn.Sequential(
             ConvBlock(
                 in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1
@@ -37,7 +34,6 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),  # Reduces spatial dimensions by 2
         )
 
-        # Layer 2: Increase channels and downsample further
         self.layer2 = nn.Sequential(
             ConvBlock(
                 in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1
@@ -45,7 +41,6 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        # Layer 3: Introduce some block repetition to learn richer features
         self.layer3 = nn.Sequential(
             ConvBlock(
                 in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1
@@ -59,7 +54,6 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        # Layer 4: Further increase depth
         self.layer4 = nn.Sequential(
             ConvBlock(
                 in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1
@@ -73,7 +67,6 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        # Layer 5: Heavier feature extraction stage with deeper layers
         self.layer5 = nn.Sequential(
             ConvBlock(
                 in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1
@@ -93,9 +86,6 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
-        # Layer 6: Final stage to produce high-level feature maps
-        # The spatial dimensions remain the same as the previous layer,
-        # but the depth (number of channels) increases.
         self.layer6 = nn.Sequential(
             ConvBlock(
                 in_channels=512, out_channels=1024, kernel_size=3, stride=1, padding=1
@@ -124,14 +114,10 @@ class YOLOBackbone(nn.Module):
         return x
 
 
-# Testing the backbone with dummy data
 if __name__ == "__main__":
-    # Create a dummy input tensor simulating a batch of one 416x416 RGB image.
     dummy_input = torch.randn(1, 3, 416, 416)
 
-    # Instantiate the backbone model
     model = YOLOBackbone()
 
-    # Forward pass through the backbone network
     features = model(dummy_input)
     print("Output feature map shape:", features.shape)

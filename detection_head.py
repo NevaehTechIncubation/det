@@ -25,15 +25,10 @@ class YOLODetectionHead(nn.Module):
         Returns:
             Predictions reshaped to [batch_size, S, S, B, (5+num_classes)].
         """
-        # Apply the 1x1 convolution to predict bounding boxes, confidence, and class scores.
         x = self.predictions(x)
-        # x now has the shape: (batch_size, B*(5+C), S, S)
 
-        # Obtain spatial dimensions.
         batch_size, _, S_h, S_w = x.shape
 
-        # Reshape x to have separate dimensions for bounding boxes and predictions.
-        # First, view the tensor as (batch_size, B, (5+num_classes), S_h, S_w).
         x = x.view(batch_size, self.B, (5 + self.num_classes), S_h, S_w)
 
         # Permute to get the final output shape:
@@ -43,18 +38,11 @@ class YOLODetectionHead(nn.Module):
         return x
 
 
-# Testing the detection head with dummy feature maps
 if __name__ == "__main__":
-    # Simulate a feature map from the backbone:
-    # Let's assume a batch of 1, 1024 channels, spatial dims S x S (e.g., 20 x 20)
     dummy_features = torch.randn(1, 1024, 20, 20)
 
-    # Instantiate the detection head. For example, for Pascal VOC: num_classes=20, B=3.
     detection_head = YOLODetectionHead(in_channels=1024, num_classes=20, B=3)
 
-    # Forward pass through the detection head
     predictions = detection_head(dummy_features)
 
     print("Predictions shape:", predictions.shape)
-    # Expected output shape: [1, 20, 20, 3, 25]
-    # Where 25 = 5 (bbox coordinates + confidence) + 20 (class probabilities)

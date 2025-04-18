@@ -35,6 +35,7 @@ class YOLOLoss(nn.Module):
         # We assume the confidence target (at index 4) is 1 for object-present cells.
         obj_mask = target[..., 4].unsqueeze(-1)  # Shape: [batch, S, S, 1]
 
+        breakpoint()
         # -------------------------
         # 1. Localization Loss
         # -------------------------
@@ -86,31 +87,23 @@ class YOLOLoss(nn.Module):
         return total_loss
 
 
-# Test the YOLO loss with dummy data.
 if __name__ == "__main__":
-    # Suppose we have a 20x20 grid, 1 bounding box per cell, and 20 classes.
     batch_size = 2
     S = 20
-    num_classes = 20
+    num_classes = 16
 
-    # Create dummy predictions: random values for demonstration.
     dummy_predictions = torch.randn(batch_size, S, S, 5 + num_classes)
 
-    # Create a dummy target tensor.
-    # For simplicity, assume that only one cell per sample contains an object.
     dummy_target = torch.zeros(batch_size, S, S, 5 + num_classes)
 
-    # For the first sample, assume an object is at cell (6,6):
     dummy_target[0, 6, 6, :4] = torch.tensor([0.5, 0.5, 1.0, 1.0])  # x, y, w, h
     dummy_target[0, 6, 6, 4] = 1.0  # Confidence = 1
     dummy_target[0, 6, 6, 5] = 1.0  # One-hot for class 0 (for example)
 
-    # For the second sample, assume an object is at cell (7,7):
     dummy_target[1, 7, 7, :4] = torch.tensor([0.3, 0.3, 0.8, 0.8])
     dummy_target[1, 7, 7, 4] = 1.0
     dummy_target[1, 7, 7, 10] = 1.0  # One-hot for class 5 (for example)
 
-    # Instantiate the loss.
     criterion = YOLOLoss(S=S, B=1, num_classes=num_classes)
     loss_value = criterion(dummy_predictions, dummy_target)
     print("Dummy YOLO loss:", loss_value.item())

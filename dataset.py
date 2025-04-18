@@ -17,12 +17,13 @@ def normalize_bounding_boxes(bboxes, image_width, image_height):
     Returns:
         Normalized bounding box tensor of shape [num_boxes, 5].
     """
-    normalized_bboxes = bboxes.clone()
-    normalized_bboxes[:, 0] = bboxes[:, 0] / image_width  # x_center
-    normalized_bboxes[:, 1] = bboxes[:, 1] / image_height  # y_center
-    normalized_bboxes[:, 2] = bboxes[:, 2] / image_width  # width
-    normalized_bboxes[:, 3] = bboxes[:, 3] / image_height  # height
-    return normalized_bboxes
+    # normalized_bboxes = bboxes.clone()
+    # normalized_bboxes[:, 0] = bboxes[:, 0] / image_width  # x_center
+    # normalized_bboxes[:, 1] = bboxes[:, 1] / image_height  # y_center
+    # normalized_bboxes[:, 2] = bboxes[:, 2] / image_width  # width
+    # normalized_bboxes[:, 3] = bboxes[:, 3] / image_height  # height
+    # return normalized_bboxes
+    return bboxes
 
 
 def assign_to_grid(bboxes, S, num_classes):
@@ -78,44 +79,37 @@ class YOLODataset(Dataset):
         self.num_classes = num_classes
         self.transform = transform
 
-        # List all image files in the directory
         self.image_files = [
             f.name
             for f in Path(image_dir).iterdir()
-            if f.suffix.lower() in (".jpg", ".png")
+            if f.suffix.lower() in (".tiff", ".tif", ".jpg", ".png")
         ]
 
     def __len__(self):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        # Get the image file name
         image_file = self.image_files[idx]
         image_path = Path(self.image_dir) / image_file
 
-        # Load the image
         image = Image.open(image_path).convert("RGB")
 
-        # Apply transformations (e.g., resizing and normalization)
         if self.transform:
             image = self.transform(image)
         else:
             image = image.resize(self.image_size)
             image = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
 
-        # Check for the corresponding annotation file
         annotation_file = Path(image_file).stem + ".txt"
-        annotation_path = Path(self.annotation_dir) / annotation_file
+        annotation_path = (
+            Path(self.annotation_dir) / Path(image_file).with_suffix(".txt").name
+        )
 
         if annotation_path.exists():
-            # Load annotations if file exists
             bboxes = self._load_annotations(annotation_path)
-            # Normalize bounding boxes relative to the image size
             bboxes = normalize_bounding_boxes(bboxes, *self.image_size)
-            # Assign bounding boxes to grid
             target = assign_to_grid(bboxes, self.S, self.num_classes)
         else:
-            # Assign an empty grid for images with no annotations
             target = torch.zeros((self.S, self.S, 5 + self.num_classes))
 
         return image, target
@@ -133,6 +127,6 @@ class YOLODataset(Dataset):
         boxes = []
         with annotation_path.open("r") as f:
             for line in f:
-                values = list(map(float, line.strip().split(",")))
-                boxes.append(values)
+                cls, *box = list(map(float, line.strip().split()))
+                boxes.append([*box, cls])
         return torch.tensor(boxes)
