@@ -21,13 +21,18 @@ image_transforms = transforms.Compose(
 model = YOLO(num_classes=16)  # Change num_classes as needed
 criterion = YOLOLoss(S=20, B=1, num_classes=16)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+if torch.cuda.is_available():
+    model = model.to("cuda")
+    criterion = criterion.to("cuda")
+else:
+    print("CUDA is not available. Training on CPU.")
 
-num_epochs = 10
+num_epochs = 20
 
 dataset = YOLODataset(
-    image_dir=Path("/home/sayandip-dutta/github/pylang/det/dataset_dir/images/train"),
+    image_dir=Path("/home/sayandip/projects/pylang/ai/det/master_data/images/train"),
     annotation_dir=Path(
-        "/home/sayandip-dutta/github/pylang/det/dataset_dir/labels/train"
+        "/home/sayandip/projects/pylang/ai/det/master_data/labels/train/"
     ),
     image_size=(640, 640),
     S=20,
@@ -35,7 +40,7 @@ dataset = YOLODataset(
     transform=image_transforms,  # Define transforms like resizing and normalization
 )
 
-dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
 
 for epoch in range(num_epochs):
     model.train()
