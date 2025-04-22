@@ -1,3 +1,4 @@
+from itertools import islice
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset
@@ -59,7 +60,14 @@ def assign_to_grid(bboxes, S, num_classes):
 
 class YOLODataset(Dataset):
     def __init__(
-        self, image_dir, annotation_dir, image_size, S, num_classes, transform=None
+        self,
+        image_dir,
+        annotation_dir,
+        image_size,
+        S,
+        num_classes,
+        transform=None,
+        subset: int | None = None,
     ):
         """
         YOLO Dataset for handling images with optional annotations.
@@ -78,10 +86,14 @@ class YOLODataset(Dataset):
         self.S = S
         self.num_classes = num_classes
         self.transform = transform
-
+        paths = (
+            Path(image_dir).iterdir()
+            if subset is None
+            else islice(Path(image_dir).iterdir(), subset)
+        )
         self.image_files = [
             f.name
-            for f in Path(image_dir).iterdir()
+            for f in paths
             if f.suffix.lower() in (".tiff", ".tif", ".jpg", ".png")
         ]
 

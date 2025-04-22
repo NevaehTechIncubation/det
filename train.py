@@ -7,6 +7,8 @@ from torchvision import transforms, datasets
 
 from loss import YOLOLoss
 from model import YOLO
+from val import convert_predictions_to_boxes, convert_targets_to_boxes, validate_model
+from viz import visualize_boxes
 
 image_transforms = transforms.Compose(
     [
@@ -27,7 +29,7 @@ if torch.cuda.is_available():
 else:
     print("CUDA is not available. Training on CPU.")
 
-num_epochs = 20
+num_epochs = 5
 
 dataset = YOLODataset(
     image_dir=Path("/home/sayandip/projects/pylang/ai/det/master_data/images/train"),
@@ -38,14 +40,27 @@ dataset = YOLODataset(
     S=20,
     num_classes=16,
     transform=image_transforms,  # Define transforms like resizing and normalization
+    subset=160,
+)
+
+val_dataset = YOLODataset(
+    image_dir=Path("/home/sayandip/projects/pylang/ai/det/master_data/images/train"),
+    annotation_dir=Path(
+        "/home/sayandip/projects/pylang/ai/det/master_data/labels/train/"
+    ),
+    image_size=(640, 640),
+    S=20,
+    num_classes=16,
+    transform=image_transforms,  # Define transforms like resizing and normalization
+    subset=32,
 )
 
 dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False)
 
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
-
     for images, targets in dataloader:
         images = images.to("cuda" if torch.cuda.is_available() else "cpu")
         targets = targets.to("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,3 +78,22 @@ for epoch in range(num_epochs):
     print(
         f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(dataloader):.4f}"
     )
+    # if epoch == 4:
+    #     breakpoint()
+
+    # model.eval()
+    # metrics = validate_model(
+    #     model, val_dataloader, conf_threshold=0.05, iou_threshold=0.05
+    # )
+    # print(metrics)
+
+model.eval()
+for images, targets in val_dataloader:
+    images = images.to("cuda" if torch.cuda.is_available() else "cpu")
+    targets = targets.to("cuda" if torch.cuda.is_available() else "cpu")
+    predictions = model(images)
+    # breakpoint()
+    for image, target, pred in zip(images, targets, predictions):
+        pred_boxes = convert_predictions_to_boxes(pred, conf_threshold=0.05)
+        target_boxes = convert_targets_to_boxes(target)
+        visualize_boxes(image, target_boxes, pred_boxes)

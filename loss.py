@@ -137,8 +137,7 @@ class YOLOLoss(nn.Module):
         )
         # Loss for width and height: apply square root (adding a small epsilon for stability)
         loss_wh = self.mse(
-            torch.sqrt(torch.sqrt(torch.square(pred_boxes_best[..., 2:4])) + 1e-6)
-            * obj_mask,
+            torch.sqrt(pred_boxes_best[..., 2:4] + 1e-6) * obj_mask,
             torch.sqrt(gt_boxes[..., 2:4] + 1e-6) * obj_mask,
         )
 

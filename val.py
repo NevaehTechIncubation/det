@@ -42,6 +42,7 @@ def non_maximum_suppression(predictions, iou_threshold=0.5):
     scores = predictions[:, 4]
     classes = predictions[:, 5]
 
+    # breakpoint()
     keep_indices = nms(boxes, scores, iou_threshold)
     return predictions[keep_indices]
 
@@ -70,6 +71,7 @@ def validate_model(model, dataloader, iou_threshold=0.5, conf_threshold=0.5):
             targets = targets.to(device)
 
             raw_predictions = model(images)
+            # breakpoint()
 
             for i, image_preds in enumerate(raw_predictions):
                 processed_preds = convert_predictions_to_boxes(
