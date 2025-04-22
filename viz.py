@@ -17,6 +17,7 @@ def visualize_boxes(image, ground_truths=None, predictions=None, image_size=640)
         image_size: Image size (e.g., 640 for a 640x640 image).
     """
     # Convert tensor to NumPy array if needed
+    # breakpoint()
     if torch.is_tensor(image):
         image = image.permute(1, 2, 0).cpu().numpy()  # Convert [3, H, W] to [H, W, 3]
 
@@ -48,7 +49,6 @@ def visualize_boxes(image, ground_truths=None, predictions=None, image_size=640)
                 color="green",
                 fontsize=12,
             )
-
     # Plot predicted boxes
     if predictions is not None:
         for box in predictions:

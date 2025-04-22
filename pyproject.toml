@@ -8,6 +8,7 @@ dependencies = [
     "matplotlib>=3.10.1",
     "numpy>=2.2.4",
     "pillow>=11.2.1",
+    "pyqt6>=6.9.0",
     "torch>=2.6.0",
     "torchvision>=0.21.0",
 ]
