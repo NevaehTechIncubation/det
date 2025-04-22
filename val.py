@@ -47,7 +47,7 @@ def non_maximum_suppression(predictions, iou_threshold=0.5):
     return predictions[keep_indices]
 
 
-def validate_model(model, dataloader, iou_threshold=0.5, conf_threshold=0.5):
+def validate_model(model, dataloader, iou_threshold=0.5, conf_threshold=0.0):
     """
     Perform validation on a dataset.
 
@@ -71,14 +71,16 @@ def validate_model(model, dataloader, iou_threshold=0.5, conf_threshold=0.5):
             targets = targets.to(device)
 
             raw_predictions = model(images)
-            # breakpoint()
 
             for i, image_preds in enumerate(raw_predictions):
-                processed_preds = convert_predictions_to_boxes(
-                    image_preds, conf_threshold
+                processed_preds = convert_predictions_to_boxes_vectorized(
+                    image_preds.unsqueeze(0), conf_threshold
                 )
 
+                # if processed_preds.size(-1) == 0:
+                #     continue
                 filtered_preds = non_maximum_suppression(processed_preds, iou_threshold)
+                # print(filtered_preds.size())
 
                 all_predictions.append(filtered_preds)
                 all_ground_truths.append(convert_targets_to_boxes(targets[i]))

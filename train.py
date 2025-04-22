@@ -41,7 +41,7 @@ if torch.cuda.is_available():
 else:
     print("CUDA is not available. Training on CPU.")
 
-num_epochs = 25
+num_epochs = 50
 
 dataset = YOLODataset(
     image_dir=Path("/home/sayandip/projects/pylang/ai/det/master_data/images/train"),
@@ -108,20 +108,21 @@ for epoch in range(num_epochs):
     # if epoch == 4:
     #     breakpoint()
 
-    # model.eval()
-    # metrics = validate_model(
-    #     model, val_dataloader, conf_threshold=0.05, iou_threshold=0.05
-    # )
-    # print(metrics)
+    model.eval()
+    metrics = validate_model(
+        model, val_dataloader, conf_threshold=0.5, iou_threshold=0.5
+    )
+    print(metrics)
 
 model.eval()
-for (plot_images, _), (images, targets) in zip(plot_dataloader, val_dataloader):
-    images = images.to("cuda" if torch.cuda.is_available() else "cpu")
-    targets = targets.to("cuda" if torch.cuda.is_available() else "cpu")
-    predictions = model(images)
-    for image, target, pred in zip(plot_images, targets, predictions):
-        pred_boxes = convert_predictions_to_boxes_vectorized(
-            pred.unsqueeze(0), conf_threshold=0.5
-        )
-        target_boxes = convert_targets_to_boxes(target)
-        visualize_boxes(image, target_boxes, pred_boxes)
+with torch.no_grad():
+    for (plot_images, _), (images, targets) in zip(plot_dataloader, val_dataloader):
+        images = images.to("cuda" if torch.cuda.is_available() else "cpu")
+        targets = targets.to("cuda" if torch.cuda.is_available() else "cpu")
+        predictions = model(images)
+        for image, target, pred in zip(plot_images, targets, predictions):
+            pred_boxes = convert_predictions_to_boxes_vectorized(
+                pred.unsqueeze(0), conf_threshold=0.5
+            )
+            target_boxes = convert_targets_to_boxes(target)
+            visualize_boxes(image, target_boxes, pred_boxes)
