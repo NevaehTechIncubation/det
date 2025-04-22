@@ -92,4 +92,4 @@ class YOLOLoss(nn.Module):
             index=best_iou_idx.unsqueeze(-1)
             .unsqueeze(-1)
             .expand(-1, self.grid_size, self.grid_size, 1, self.num_classes),
-        ).squeeze(3)  # [batch_size, grid_size, grid_size, 1]
+        ).squeeze(3)  # [batch_size, grid_size, grid_size, num_classes]
