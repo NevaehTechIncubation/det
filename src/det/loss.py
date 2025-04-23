@@ -29,7 +29,7 @@ def compute_ious(pred_boxes, target_boxes):
     union_area = pred_area + target_area.unsqueeze(3) - inter_area
 
     ious = inter_area / (union_area + 1e-6)
-    return iou
+    return ious
 
 
 class YOLOLoss(nn.Module):
@@ -93,3 +93,37 @@ class YOLOLoss(nn.Module):
             .unsqueeze(-1)
             .expand(-1, self.grid_size, self.grid_size, 1, self.num_classes),
         ).squeeze(3)  # [batch_size, grid_size, grid_size, num_classes]
+
+        # 1.a. Localization loss (x,y)
+        loss_xy = self.mse(
+            best_pred_box[..., :2] * obj_mask,
+            target_boxes[..., :2] * obj_mask,
+        )
+
+        # 1.b. Localization loss (w,h)
+        loss_wh = self.mse(
+            torch.sqrt(best_pred_box[..., 2:4] * 1e-6) * obj_mask,
+            torch.sqrt(target_boxes[..., 2:4] * 1e-6) * obj_mask,
+        )
+
+        # 2. Confidence loss
+        # a. for cells with objects
+        loss_conf = self.mse(best_pred_conf * obj_mask, target_confidences * obj_mask)
+        # b. for cells with no objects
+        noobj_mask = 1 - obj_mask
+        loss_conf_noobj = self.mse(
+            best_pred_conf * noobj_mask, torch.zeros_like(best_pred_conf) * noobj_mask
+        )
+
+        # 3. Classification loss
+        loss_class = self.mse(best_pred_class * obj_mask, target_classes * obj_mask)
+
+        # 4. total loss
+        loss_total = (
+            (loss_xy + loss_wh) * self.lambda_coord
+            + loss_conf
+            + loss_conf_noobj * self.lambda_noobj
+            + loss_class
+        ) / batch_size
+
+        return loss_total
