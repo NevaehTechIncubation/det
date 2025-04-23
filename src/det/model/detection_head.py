@@ -18,5 +18,15 @@ class YOLODetectionHead(nn.Module):
         """
         x = self.conv(x)
         batch_size, _, S_h, S_w = x.size()
-        x = x.view(batch_size, self.B, (5 + self.num_classes), S_h, S_w)
-        return x.permute(0, 3, 4, 1, 2).contiguous()
+        x = (
+            x.view(batch_size, self.B, (5 + self.num_classes), S_h, S_w)
+            .permute(0, 3, 4, 1, 2)
+            .contiguous()
+        )
+        x_xy = torch.sigmoid(x[..., :2])
+        x_wh = torch.exp(x[..., 2:4])
+        x_conf = torch.sigmoid(x[..., 4:5])
+        x_class = torch.sigmoid(x[..., 5:])
+
+        x = torch.cat((x_xy, x_wh, x_conf, x_class), dim=-1)
+        return x
