@@ -51,6 +51,8 @@ def train(
     criterion = YOLOLoss(grid_size=20, num_boxes=1, num_classes=16)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+    print(f"{running_loss / len(val_dataloader)}")
+
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
@@ -70,7 +72,6 @@ def train(
             running_loss += loss.item()
 
         metrics = validate_model(model, val_dataloader, device)
-        print(f"{running_loss / len(val_dataloader)}")
 
 
 def validate_model(
@@ -92,12 +93,15 @@ def validate_model(
     with torch.no_grad():
         model.eval()
         running_val_loss = 0.0
+        running_val_loss_detailed = torch.tensor([0.0, 0.0, 0.0, 0.0])
 
         for images, labels in dataloader:
             images = images.to(device)
             labels = labels.to(device)
 
             predictions = model(images)
-            loss = criterion(predictions, images)
-            loss.backward()
-            running_loss += loss.item()
+            detailed_loss = loss.compute_loss(predictions, images)
+            running_val_loss_detailed += detailed_loss
+            running_val_loss += detailed_loss.sum().item()
+
+        val_loss = running_val_loss / len(dataloader)

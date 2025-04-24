@@ -51,15 +51,7 @@ class YOLOLoss(nn.Module):
         """Weight for confidence loss for cells with no object"""
         self.mse = nn.MSELoss(reduction="sum")
 
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """
-        Compute the YOLO loss.
-        Args:
-            predictions (torch.Tensor): Model predictions of shape (batch_size, grid_size, grid_size, num_boxes, num_classes + 5).
-            targets (torch.Tensor): Ground truth targets of shape (batch_size, grid_size, grid_size,  5 + num_classes).
-        Returns:
-            torch.Tensor: Computed loss.
-        """
+    def compute_loss(self, predictions: torch.Tensor, targets: torch.Tensor):
         batch_size = predictions.size(0)
 
         obj_mask = targets[..., 4:5]  # [batch, grid_size, grid_size, 1]
@@ -118,12 +110,35 @@ class YOLOLoss(nn.Module):
         # 3. Classification loss
         loss_class = self.mse(best_pred_class * obj_mask, target_classes * obj_mask)
 
-        # 4. total loss
-        loss_total = (
-            (loss_xy + loss_wh) * self.lambda_coord
-            + loss_conf
-            + loss_conf_noobj * self.lambda_noobj
-            + loss_class
-        ) / batch_size
+        return torch.tensor(
+            [
+                (loss_xy + loss_wh) * self.lambda_coord / batch_size,
+                loss_conf / batch_size,
+                loss_conf_noobj * self.lambda_noobj / batch_size,
+                loss_class / batch_size,
+            ]
+        )
 
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the YOLO loss.
+        Args:
+            predictions (torch.Tensor): Model predictions of shape (batch_size, grid_size, grid_size, num_boxes, num_classes + 5).
+            targets (torch.Tensor): Ground truth targets of shape (batch_size, grid_size, grid_size,  5 + num_classes).
+        Returns:
+            torch.Tensor: Computed loss.
+        """
+        (
+            localization_loss,
+            confidence_loss,
+            confidence_loss_noobj,
+            classification_loss,
+        ) = self.compute_loss(predictions, targets)
+
+        loss_total = (
+            localization_loss
+            + confidence_loss
+            + confidence_loss_noobj
+            + classification_loss
+        )
         return loss_total
