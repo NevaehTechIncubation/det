@@ -114,7 +114,7 @@ class YOLODataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         return (
             torch
             .from_numpy(np.loadtxt(annotation_file).reshape(-1, 5))
-            .roll(-1, dims=1)  # move data from first col to last
+            .roll(-1, dims=1)  # move class label from first col to last
         )  # fmt: skip
 
 
@@ -122,10 +122,14 @@ def create_dataloader(
     dataset_dir: Path,
     num_classes: int,
     image_size: int = 640,
+    batch_size: int = 16,
     grid_size: int = 20,
-    transforms: Callable[..., torch.Tensor] | None = None,
+    transform: Callable[..., torch.Tensor] | None = None,
     num_workers: int = 0,
-) -> tuple[DataLoader[YOLODataset], DataLoader[YOLODataset]]:
+) -> tuple[
+    DataLoader[tuple[torch.Tensor, torch.Tensor]],
+    DataLoader[tuple[torch.Tensor, torch.Tensor]],
+]:
     images_dir = dataset_dir / "images"
     labels_dir = dataset_dir / "labels"
 
@@ -133,59 +137,38 @@ def create_dataloader(
         raise NotADirectoryError(str(train_dir))
 
     if (images_dir / "val").is_dir():
-        train_dataloader = DataLoader(
-            YOLODataset(
-                images_dir / "train",
-                labels_dir / "train",
-                image_size,
-                grid_size,
-                num_classes,
-                transform,
-            ),
-            batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-        )
-        val_dataloader = DataLoader(
-            YOLODataset(
-                images_dir / "val",
-                labels_dir / "val",
-                image_size,
-                grid_size,
-                num_classes,
-                transform,
-            ),
-            batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
+        train_subdir, val_subdir = "train", "val"
+        train_subset, val_subset = None, None
     else:
-        train_dataloader = DataLoader(
-            YOLODataset(
-                images_dir / "train",
-                labels_dir / "train",
-                image_size,
-                grid_size,
-                num_classes,
-                transform,
-                _subset=slice(0, -32),
-            ),
-            batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-        )
-        val_dataloader = DataLoader(
-            YOLODataset(
-                images_dir / "train",
-                labels_dir / "train",
-                image_size,
-                grid_size,
-                num_classes,
-                transform,
-                _subset=slice(-32, None),
-            ),
-            batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
+        train_subdir, val_subdir = "train", "train"
+        train_subset, val_subset = slice(0, -32), slice(-32, None)
+
+    train_dataloader = DataLoader(
+        YOLODataset(
+            images_dir / train_subdir,
+            labels_dir / train_subdir,
+            image_size,
+            grid_size,
+            num_classes,
+            transform,
+            _subset=train_subset,
+        ),
+        batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    val_dataloader = DataLoader(
+        YOLODataset(
+            images_dir / val_subdir,
+            labels_dir / val_subdir,
+            image_size,
+            grid_size,
+            num_classes,
+            transform,
+            _subset=val_subset,
+        ),
+        batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+    )
     return train_dataloader, val_dataloader
