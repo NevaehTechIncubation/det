@@ -19,3 +19,13 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+
+[tool.basedpyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+enableExperimentalFeatures = true
+exclude = ["**/test"]
+typeCheckingMode = "basic"
+

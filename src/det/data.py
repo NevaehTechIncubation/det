@@ -90,7 +90,7 @@ class YOLODataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
         image = self.transform(img)
         target = (
-            split_into_grids(annotation)
+            split_into_grids(annotation, self.grid_size, self.num_classes)
             if annotation is not None
             else torch.zeros((self.grid_size, self.grid_size, (5 + self.num_classes)))
         )
@@ -102,7 +102,7 @@ class YOLODataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         resize: int | None = None,
     ) -> tuple[Image.Image, torch.Tensor | None]:
         image_file = self.image_files[index]
-        image = self.transform(Image.open(image_file).convert("RGB"))
+        image = Image.open(image_file).convert("RGB")
 
         annotation_file = self.labels_dir / image_file.with_suffix(".txt").name
         annotation = (

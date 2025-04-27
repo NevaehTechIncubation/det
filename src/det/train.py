@@ -1,3 +1,4 @@
+from contextlib import suppress
 from pathlib import Path
 
 import torch
@@ -8,69 +9,76 @@ import yaml
 
 from det.data import create_dataloader
 from det.loss import YOLOLoss
+from det.model.yolo import YOLODetector
 
 
-def get_num_classes(dataset_dir: Path) -> int:
-    data = yaml.safe_load(dataset_dir.joinpath("data.yaml").read_text())
-    return len(data["names"])
+def get_num_classes(dataset_dir: Path) -> int | None:
+    with suppress(FileNotFoundError):
+        data: dict[str, str] = yaml.safe_load(
+            dataset_dir.joinpath("data.yaml").read_text()
+        )
+        return len(data["names"])
+    return None
 
 
 def train(
-    model: nn.Module,
+    model: nn.Module | None,
     dataset_dir: Path,
     num_epochs: int,
     batch_size: int,
     image_size: int = 640,
-    num_workers: int = 0,
     device: str = "cpu",
+    num_classes: int | None = None,
+    grid_size: int = 20,
+    num_workers: int = 0,
 ):
     transform = transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
-            transforms.Normalize(
-                [0.485, 0.456, 0.406],
-                [0.229, 0.224, 0.225],
-            ),  # ImageNet stats
             # transforms.Normalize(
-            #     [0.94827438, 0.94827438, 0.94827438],
-            #     [0.21538803, 0.21538803, 0.21538803],
-            # ), # CHC stats
+            #     [0.485, 0.456, 0.406],
+            #     [0.229, 0.224, 0.225],
+            # ),  # ImageNet stats
+            transforms.Normalize(
+                [0.94827438, 0.94827438, 0.94827438],
+                [0.21538803, 0.21538803, 0.21538803],
+            ),  # CHC stats
         ]
     )
-    num_classes = get_num_classes(dataset_dir)
+    num_classes = get_num_classes(dataset_dir) or num_classes
+    if num_classes is None:
+        raise ValueError(
+            "num_classes must be provided if dataset_dir does not contain a data.yaml file."
+        )
+    model = (
+        model
+        if model is not None
+        else YOLODetector(
+            in_channels=3,
+            num_classes=num_classes,
+        )
+    ).to(device)
+    # breakpoint()
     train_dataloader, val_dataloader = create_dataloader(
         dataset_dir,
         num_classes,
         image_size,
         batch_size,
-        20,
+        grid_size,
         transform,
         num_workers,
     )
 
-    criterion = YOLOLoss(grid_size=20, num_boxes=1, num_classes=16)
+    criterion = YOLOLoss(grid_size=grid_size, num_boxes=1, num_classes=16).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # print(f"{running_loss / len(val_dataloader)}")
 
     for epoch in range(num_epochs):
-        model.train()
-        running_loss = 0.0
-
-        for images, labels in train_dataloader:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            predictions = model(images)
-
-            loss = criterion(predictions, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
+        loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
+        print(f"{epoch + 1}/{num_epochs}")
+        print(f"Train loss: {loss:.4f}")
 
         metrics = validate_model(
             model,
@@ -80,6 +88,28 @@ def train(
             num_boxes=1,
             device=device,
         )
+        print(f"Validation metrics: {metrics}")
+
+
+def train_one_epoch(model, criterion, optimizer, dataloader, device):
+    model.train()
+    running_loss = 0.0
+
+    for images, labels in dataloader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        predictions = model(images)
+
+        loss = criterion(predictions, labels)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+    return running_loss / len(dataloader)
 
 
 def validate_model(
@@ -109,9 +139,9 @@ def validate_model(
             labels = labels.to(device)
 
             raw_predictions = model(images)
-            detailed_loss = criterion.compute_loss(raw_predictions, images)
-            running_val_loss_detailed += detailed_loss
-            running_val_loss += detailed_loss.sum().item()
+            detailed_loss = criterion.compute_loss(raw_predictions, labels)
+            running_val_loss_detailed += torch.tensor(detailed_loss)
+            running_val_loss += torch.tensor(detailed_loss).sum().item()
 
             for i, predictions in enumerate(raw_predictions):
                 processed_preds = convert_predictions_to_boxes(
@@ -124,6 +154,9 @@ def validate_model(
 
         metrics = compute_validation_metrics(all_predictions, all_ground_truths)
         val_loss = running_val_loss / len(dataloader)
+        val_loss_detailed = running_val_loss_detailed / len(dataloader)
+
+    return {**metrics, "val_loss": val_loss, "val_loss_detailed": val_loss_detailed}
 
 
 def convert_predictions_to_boxes(
@@ -143,22 +176,23 @@ def convert_predictions_to_boxes(
         List of tensors, each containing bounding boxes in the format
         [x_min, y_min, x_max, y_max, confidence, class].
     """
-    grid_size, grid_size, B, num_features = predictions.shape
-    num_classes = num_features - 5
+    grid_size, grid_size, _, num_features = predictions.shape
+    # num_classes = num_features - 5
 
     box_coords = predictions[..., :4]
     confidences = predictions[..., 4]
     class_probs = predictions[..., 5:]
 
-    class_scores, class_ids = torch.max(class_probs, dim=-1)
+    # breakpoint()
+    _class_scores, class_ids = torch.max(class_probs, dim=-1)
 
     mask = confidences > conf_threshold
 
     grid_y, grid_x = torch.meshgrid(
         torch.arange(grid_size), torch.arange(grid_size), indexing="ij"
     )
-    grid_x = grid_x.to(predictions.device).unsqueeze(-1).unsqueeze(0)
-    grid_y = grid_y.to(predictions.device).unsqueeze(-1).unsqueeze(0)
+    grid_x = grid_x.to(predictions.device).unsqueeze(-1)
+    grid_y = grid_y.to(predictions.device).unsqueeze(-1)
 
     x_center = (box_coords[..., 0] + grid_x) / grid_size * image_size
     y_center = (box_coords[..., 1] + grid_y) / grid_size * image_size
@@ -269,7 +303,7 @@ def non_maximum_suppression(predictions, iou_threshold=0.5):
     """
     boxes = predictions[:, :4]
     scores = predictions[:, 4]
-    classes = predictions[:, 5]
+    # classes = predictions[:, 5]
 
     # breakpoint()
     keep_indices = nms(boxes, scores, iou_threshold)
@@ -323,6 +357,9 @@ def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
         matched_gt = torch.zeros(gt_boxes.shape[0])
 
         for pred_box in pred_boxes:
+            if not gt_boxes.size(0):
+                fp += 1
+                continue
             ious = torch.tensor(
                 [compute_iou(pred_box[:4], gt_box[:4]) for gt_box in gt_boxes]
             )
@@ -342,3 +379,41 @@ def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
     )
 
     return {"precision": precision, "recall": recall, "f1_score": f1}
+
+
+def predict(model, inputs, conf_threshold=0.5, iou_threshold=0.5):
+    with torch.no_grad():
+        model.eval()
+        predictions = model(inputs)
+        # Apply post-processing (e.g., NMS) to the predictions
+        processed_predictions = []
+        for pred in predictions:
+            processed_pred = convert_predictions_to_boxes(
+                pred, conf_threshold=conf_threshold
+            )
+            filtered_pred = non_maximum_suppression(
+                processed_pred, iou_threshold=iou_threshold
+            )
+            processed_predictions.append(filtered_pred)
+        return processed_predictions
+
+
+if __name__ == "__main__":
+    # Example usage
+    model = None
+    dataset_dir = Path(
+        "/home/sayandip/projects/pylang/ai/det/master_data"
+    )  # Replace with your dataset path
+    num_epochs = 10
+    batch_size = 4
+    image_size = 640
+    # num_workers = 4
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    train(
+        model,
+        dataset_dir,
+        num_epochs,
+        batch_size,
+        image_size,
+        device,
+    )

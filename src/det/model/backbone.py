@@ -20,10 +20,10 @@ class YOLOBackbone(nn.Module):
             nn.MaxPool2d(2, 2),
         )
 
-        self.layer3: nn.Module = CompressorBlock(68, 128, 1)
-        self.layer4: nn.Module = CompressorBlock(128, 256, 1)
-        self.layer5: nn.Module = CompressorBlock(256, 512, 2)
-        self.layer6: nn.Module = CompressorBlock(512, 1024, 2)
+        self.layer3: nn.Module = CompressorBlock(64, 128, 1, pool=True)
+        self.layer4: nn.Module = CompressorBlock(128, 256, 1, pool=True)
+        self.layer5: nn.Module = CompressorBlock(256, 512, 2, pool=True)
+        self.layer6: nn.Module = CompressorBlock(512, 1024, 2, pool=False)
 
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:

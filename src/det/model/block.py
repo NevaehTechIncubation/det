@@ -36,7 +36,14 @@ class ConvBlock(nn.Module):
 
 
 class CompressorBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, depth: int) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        depth: int,
+        *,
+        pool: bool,
+    ) -> None:
         assert depth > 0
         super(CompressorBlock, self).__init__()
         sublayers: list[nn.Module] = []
@@ -44,6 +51,8 @@ class CompressorBlock(nn.Module):
             sublayers.append(ConvBlock(in_channels, out_channels, 3, 1, 1))
             sublayers.append(ConvBlock(out_channels, in_channels, 1, 1, 0))
         sublayers.append(ConvBlock(in_channels, out_channels, 3, 1, 1))
+        if pool:
+            sublayers.append(nn.MaxPool2d(2, 2))
         self.layer: nn.Module = nn.Sequential(*sublayers)
 
     @override

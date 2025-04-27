@@ -79,7 +79,7 @@ class YOLOLoss(nn.Module):
             .unsqueeze(-1)
         ).squeeze(3)  # [batch_size, grid_size, grid_size, 1]  # fmt: skip
 
-        best_pred_class = pred_confidences.gather(
+        best_pred_class = pred_classes.gather(
             dim=3,
             index=best_iou_idx.unsqueeze(-1)
             .unsqueeze(-1)
@@ -110,14 +110,12 @@ class YOLOLoss(nn.Module):
         # 3. Classification loss
         loss_class = self.mse(best_pred_class * obj_mask, target_classes * obj_mask)
 
-        return torch.tensor(
-            [
-                (loss_xy + loss_wh) * self.lambda_coord / batch_size,
-                loss_conf / batch_size,
-                loss_conf_noobj * self.lambda_noobj / batch_size,
-                loss_class / batch_size,
-            ]
-        )
+        return [
+            (loss_xy + loss_wh) * self.lambda_coord / batch_size,
+            loss_conf / batch_size,
+            loss_conf_noobj * self.lambda_noobj / batch_size,
+            loss_class / batch_size,
+        ]
 
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """
