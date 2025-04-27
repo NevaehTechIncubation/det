@@ -86,11 +86,12 @@ class YOLODataset(Dataset):
         self.S = S
         self.num_classes = num_classes
         self.transform = transform
-        paths = (
-            Path(image_dir).iterdir()
-            if subset is None
-            else islice(Path(image_dir).iterdir(), subset)
-        )
+        paths = list(Path(image_dir).iterdir())
+        if subset is not None:
+            if subset < 0:
+                paths = paths[subset:]
+            else:
+                paths = paths[:subset]
         self.image_files = [
             f.name
             for f in paths
