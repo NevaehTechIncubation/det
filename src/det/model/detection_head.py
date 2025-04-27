@@ -26,7 +26,7 @@ class YOLODetectionHead(nn.Module):
         x_xy = torch.sigmoid(x[..., :2])
         x_wh = torch.exp(x[..., 2:4])
         x_conf = torch.sigmoid(x[..., 4:5])
-        x_class = torch.sigmoid(x[..., 5:])
+        x_class = x[..., 5:]
 
         x = torch.cat((x_xy, x_wh, x_conf, x_class), dim=-1)
         return x
