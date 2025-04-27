@@ -36,14 +36,14 @@ def train(
         [
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
-            # transforms.Normalize(
-            #     [0.485, 0.456, 0.406],
-            #     [0.229, 0.224, 0.225],
-            # ),  # ImageNet stats
             transforms.Normalize(
-                [0.94827438, 0.94827438, 0.94827438],
-                [0.21538803, 0.21538803, 0.21538803],
-            ),  # CHC stats
+                [0.485, 0.456, 0.406],
+                [0.229, 0.224, 0.225],
+            ),  # ImageNet stats
+            # transforms.Normalize(
+            #     [0.94827438, 0.94827438, 0.94827438],
+            #     [0.21538803, 0.21538803, 0.21538803],
+            # ),  # CHC stats
         ]
     )
     num_classes = get_num_classes(dataset_dir) or num_classes
@@ -87,6 +87,7 @@ def train(
             grid_size=20,
             num_boxes=1,
             device=device,
+            conf_threshold=0.8,
         )
         print(f"Validation metrics: {metrics}")
 
@@ -216,9 +217,10 @@ def convert_predictions_to_boxes(
         dim=-1,
     )
 
-    all_boxes = all_boxes[mask]
+    # breakpoint()
+    valid_boxes = all_boxes[mask]
 
-    return all_boxes
+    return valid_boxes
 
 
 def convert_targets_to_boxes(target, image_size=640):
@@ -337,7 +339,7 @@ def compute_iou(box1, box2):
 
 def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
     """
-    Compute validation metrics (IoU, precision, recall, mAP).
+    Compute validation metrics (IoU, precision, recall, mAP) with handling for cases with no ground-truth objects.
 
     Parameters:
         predictions: List of predicted bounding boxes (from NMS).
@@ -349,33 +351,41 @@ def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
     Returns:
         Dictionary with validation metrics.
     """
-    tp = 0
-    fp = 0
-    fn = 0
+    tp = 0  # True positives
+    fp = 0  # False positives
+    fn = 0  # False negatives
 
     for pred_boxes, gt_boxes in zip(predictions, ground_truths):
-        matched_gt = torch.zeros(gt_boxes.shape[0])
+        if gt_boxes.numel() == 0:  # No ground-truth objects
+            # Handle no object case
+            fp += len(pred_boxes)  # All predictions are false positives
+            continue
+
+        # Normal case with ground-truth boxes
+        matched_gt = torch.zeros(gt_boxes.shape[0])  # Track matched ground-truth boxes
 
         for pred_box in pred_boxes:
-            if not gt_boxes.size(0):
-                fp += 1
-                continue
             ious = torch.tensor(
                 [compute_iou(pred_box[:4], gt_box[:4]) for gt_box in gt_boxes]
             )
             max_iou, gt_idx = torch.max(ious, dim=0)
             if max_iou >= iou_threshold and matched_gt[gt_idx] == 0:
-                tp += 1
-                matched_gt[gt_idx] = 1
+                tp += 1  # True positive
+                matched_gt[gt_idx] = 1  # Mark ground truth as matched
             else:
-                fp += 1
+                fp += 1  # False positive
 
-        fn += torch.sum(matched_gt == 0).item()
+        fn += torch.sum(
+            matched_gt == 0
+        ).item()  # Count remaining unmatched ground truths
 
-    precision = tp / (tp + fp) if tp + fp > 0 else 0
-    recall = tp / (tp + fn) if tp + fn > 0 else 0
+    # Compute metrics
+    precision = tp / (tp + fp) if tp + fp > 0 else 0  # Avoid division by zero
+    recall = tp / (tp + fn) if tp + fn > 0 else 0  # Avoid division by zero
     f1 = (
-        2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
+        (2 * (precision * recall) / (precision + recall))
+        if precision + recall > 0
+        else 0
     )
 
     return {"precision": precision, "recall": recall, "f1_score": f1}
