@@ -16,7 +16,8 @@ class YOLODetector(nn.Module):
 
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return Pipeline[torch.Tensor, torch.Tensor](
-            self.backbone,
-            self.detection_head,
-        )[x]
+        return self.detection_head(self.backbone(x))
+        # return Pipeline[torch.Tensor, torch.Tensor](
+        #     self.backbone,
+        #     self.detection_head,
+        # )[x]

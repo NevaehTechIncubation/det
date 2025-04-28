@@ -126,17 +126,80 @@ class YOLOLoss(nn.Module):
         Returns:
             torch.Tensor: Computed loss.
         """
+        batch_size = predictions.size(0)
+        obj_mask = targets[..., 4:5]  # [batch, grid_size, grid_size, 1]
+
+        pred_boxes = predictions[..., :4]
+        pred_confidences = predictions[..., 4:5]
+        pred_classes = predictions[..., 5:]
+
+        target_boxes = targets[..., :4]
+        target_confidences = targets[..., 4:5]
+        target_classes = targets[..., 5:]
+
+        ious = compute_ious(pred_boxes, target_boxes)
+        iou, best_iou_idx = ious.max(-1)  # [batch_size, grid_size, grid_size]
+
+        best_pred_box = pred_boxes.gather(
+            dim=3,
+            index=best_iou_idx.unsqueeze(-1)
+            .unsqueeze(-1)
+            .expand(-1, self.grid_size, self.grid_size, 1, 4),
+        ).squeeze(3)  # [batch_size, grid_size, grid_size, 4]
+
+        best_pred_conf = pred_confidences.gather(
+            dim=3, index=best_iou_idx.unsqueeze(-1)
+            .unsqueeze(-1)
+        ).squeeze(3)  # [batch_size, grid_size, grid_size, 1]  # fmt: skip
+
+        best_pred_class = pred_classes.gather(
+            dim=3,
+            index=best_iou_idx.unsqueeze(-1)
+            .unsqueeze(-1)
+            .expand(-1, self.grid_size, self.grid_size, 1, self.num_classes),
+        ).squeeze(3)  # [batch_size, grid_size, grid_size, num_classes]
+
+        # 1.a. Localization loss (x,y)
+        loss_xy = self.mse(
+            best_pred_box[..., :2] * obj_mask,
+            target_boxes[..., :2] * obj_mask,
+        )
+
+        # 1.b. Localization loss (w,h)
+        loss_wh = self.mse(
+            torch.sqrt(best_pred_box[..., 2:4] * 1e-6) * obj_mask,
+            torch.sqrt(target_boxes[..., 2:4] * 1e-6) * obj_mask,
+        )
+
+        # 2. Confidence loss
+        # a. for cells with objects
+        loss_conf = self.mse(best_pred_conf * obj_mask, target_confidences * obj_mask)
+        # b. for cells with no objects
+        noobj_mask = 1 - obj_mask
+        loss_conf_noobj = self.mse(
+            pred_confidences.squeeze() * noobj_mask,
+            torch.zeros_like(pred_confidences.squeeze()) * noobj_mask,
+        )
+
+        # 3. Classification loss
+        loss_class = self.mse(best_pred_class * obj_mask, target_classes * obj_mask)
+
         (
             localization_loss,
             confidence_loss,
             confidence_loss_noobj,
             classification_loss,
-        ) = self.compute_loss(predictions, targets)
+        ) = [
+            (loss_xy + loss_wh) * self.lambda_coord,
+            loss_conf,
+            loss_conf_noobj * self.lambda_noobj,
+            loss_class,
+        ]
 
         loss_total = (
             localization_loss
             + confidence_loss
             + confidence_loss_noobj
             + classification_loss
-        )
+        ) / batch_size
         return loss_total

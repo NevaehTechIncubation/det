@@ -72,13 +72,35 @@ def train(
 
     criterion = YOLOLoss(grid_size=grid_size, num_boxes=1, num_classes=16).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    print("Total:", sum(p.numel() for p in model.parameters()))
+    print(
+        "Total trainable:",
+        sum(p.numel() for p in model.parameters() if p.requires_grad),
+    )
 
     # print(f"{running_loss / len(val_dataloader)}")
 
     for epoch in range(num_epochs):
-        loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
+        model.train()
+        running_loss = 0.0
+
+        for images, labels in train_dataloader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            predictions = model(images)
+
+            loss = criterion(predictions, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+        epoch_loss = running_loss / len(train_dataloader)
         print(f"{epoch + 1}/{num_epochs}")
-        print(f"Train loss: {loss:.4f}")
+        print(f"Train loss: {epoch_loss:.4f}")
 
         metrics = validate_model(
             model,
@@ -88,6 +110,7 @@ def train(
             num_boxes=1,
             device=device,
             conf_threshold=0.8,
+            iou_threshold=0.3,
         )
         print(f"Validation metrics: {metrics}")
 
@@ -129,8 +152,8 @@ def validate_model(
         if criterion is None
         else criterion
     )
+    model.eval()
     with torch.no_grad():
-        model.eval()
         running_val_loss = 0.0
         running_val_loss_detailed = torch.tensor([0.0, 0.0, 0.0, 0.0])
         all_predictions = []
@@ -140,9 +163,9 @@ def validate_model(
             labels = labels.to(device)
 
             raw_predictions = model(images)
-            detailed_loss = criterion.compute_loss(raw_predictions, labels)
-            running_val_loss_detailed += torch.tensor(detailed_loss)
-            running_val_loss += torch.tensor(detailed_loss).sum().item()
+            # detailed_loss = criterion.compute_loss(raw_predictions, labels)
+            # running_val_loss_detailed += torch.tensor(detailed_loss)
+            # running_val_loss += torch.tensor(detailed_loss).sum().item()
 
             for i, predictions in enumerate(raw_predictions):
                 processed_preds = convert_predictions_to_boxes(
@@ -154,10 +177,10 @@ def validate_model(
                 all_ground_truths.append(convert_targets_to_boxes(labels[i]))
 
         metrics = compute_validation_metrics(all_predictions, all_ground_truths)
-        val_loss = running_val_loss / len(dataloader)
-        val_loss_detailed = running_val_loss_detailed / len(dataloader)
-
-    return {**metrics, "val_loss": val_loss, "val_loss_detailed": val_loss_detailed}
+        # val_loss = running_val_loss / len(dataloader)
+        # val_loss_detailed = running_val_loss_detailed / len(dataloader)
+    return metrics
+    # return {**metrics, "val_loss": val_loss, "val_loss_detailed": val_loss_detailed}
 
 
 def convert_predictions_to_boxes(
@@ -334,7 +357,7 @@ def compute_iou(box1, box2):
     box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
     union_area = box1_area + box2_area - inter_area
 
-    return inter_area / union_area
+    return inter_area / (union_area + 1e-6)
 
 
 def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
@@ -411,10 +434,11 @@ def predict(model, inputs, conf_threshold=0.5, iou_threshold=0.5):
 if __name__ == "__main__":
     # Example usage
     model = None
+
     dataset_dir = Path(
-        "/home/sayandip/projects/pylang/ai/det/master_data"
+        "/home/nevaeh/projects/det/master_data/"
     )  # Replace with your dataset path
-    num_epochs = 10
+    num_epochs = 30
     batch_size = 4
     image_size = 640
     # num_workers = 4
@@ -426,4 +450,5 @@ if __name__ == "__main__":
         batch_size,
         image_size,
         device,
+        num_classes=16,
     )
