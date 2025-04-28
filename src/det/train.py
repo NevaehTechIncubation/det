@@ -71,7 +71,7 @@ def train(
     )
 
     criterion = YOLOLoss(grid_size=grid_size, num_boxes=1, num_classes=16).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     print("Total:", sum(p.numel() for p in model.parameters()))
     print(
         "Total trainable:",
@@ -163,9 +163,9 @@ def validate_model(
             labels = labels.to(device)
 
             raw_predictions = model(images)
-            # detailed_loss = criterion.compute_loss(raw_predictions, labels)
-            # running_val_loss_detailed += torch.tensor(detailed_loss)
-            # running_val_loss += torch.tensor(detailed_loss).sum().item()
+            detailed_loss = criterion.compute_loss(raw_predictions, labels)
+            running_val_loss_detailed += torch.tensor(detailed_loss)
+            running_val_loss += torch.tensor(detailed_loss).sum().item()
 
             for i, predictions in enumerate(raw_predictions):
                 processed_preds = convert_predictions_to_boxes(
@@ -177,10 +177,9 @@ def validate_model(
                 all_ground_truths.append(convert_targets_to_boxes(labels[i]))
 
         metrics = compute_validation_metrics(all_predictions, all_ground_truths)
-        # val_loss = running_val_loss / len(dataloader)
-        # val_loss_detailed = running_val_loss_detailed / len(dataloader)
-    return metrics
-    # return {**metrics, "val_loss": val_loss, "val_loss_detailed": val_loss_detailed}
+        val_loss = running_val_loss / len(dataloader)
+        val_loss_detailed = running_val_loss_detailed / len(dataloader)
+    return {**metrics, "val_loss": val_loss, "val_loss_detailed": val_loss_detailed}
 
 
 def convert_predictions_to_boxes(
@@ -438,7 +437,7 @@ if __name__ == "__main__":
     dataset_dir = Path(
         "/home/nevaeh/projects/det/master_data/"
     )  # Replace with your dataset path
-    num_epochs = 30
+    num_epochs = 50
     batch_size = 4
     image_size = 640
     # num_workers = 4
