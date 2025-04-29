@@ -2,8 +2,6 @@ from typing import override
 import torch
 from torch import nn
 
-from det.pipeline import Pipeline
-
 
 class ConvBlock(nn.Module):
     def __init__(
@@ -29,11 +27,6 @@ class ConvBlock(nn.Module):
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.bn(self.conv(x)))
-        # return Pipeline[torch.Tensor, torch.Tensor](
-        #     self.conv,
-        #     self.bn,
-        #     self.act,
-        # )[x]
 
 
 class CompressorBlock(nn.Module):

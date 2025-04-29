@@ -36,14 +36,14 @@ def train(
         [
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
-            transforms.Normalize(
-                [0.485, 0.456, 0.406],
-                [0.229, 0.224, 0.225],
-            ),  # ImageNet stats
             # transforms.Normalize(
-            #     [0.94827438, 0.94827438, 0.94827438],
-            #     [0.21538803, 0.21538803, 0.21538803],
-            # ),  # CHC stats
+            #     [0.485, 0.456, 0.406],
+            #     [0.229, 0.224, 0.225],
+            # ),  # ImageNet stats
+            transforms.Normalize(
+                [0.94827438, 0.94827438, 0.94827438],
+                [0.21538803, 0.21538803, 0.21538803],
+            ),  # CHC stats
         ]
     )
     num_classes = get_num_classes(dataset_dir) or num_classes
@@ -78,27 +78,17 @@ def train(
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     )
 
-    # print(f"{running_loss / len(val_dataloader)}")
-
     for epoch in range(num_epochs):
-        model.train()
-        running_loss = 0.0
-
-        for images, labels in train_dataloader:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            predictions = model(images)
-
-            loss = criterion(predictions, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-
-        epoch_loss = running_loss / len(train_dataloader)
+        epoch_loss = (
+            train_one_epoch(
+                model,
+                criterion,
+                optimizer,
+                train_dataloader,
+                device,
+            )
+            / batch_size
+        )
         print(f"{epoch + 1}/{num_epochs}")
         print(f"Train loss: {epoch_loss:.4f}")
 

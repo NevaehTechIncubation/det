@@ -64,7 +64,7 @@ class YOLODataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         self.grid_size = grid_size
         self.image_size = image_size
         self.num_classes = num_classes
-        self.transform = (
+        self.transform: Callable[..., torch.Tensor] = (
             transforms.Compose(
                 [
                     transforms.Resize((image_size, image_size)),
