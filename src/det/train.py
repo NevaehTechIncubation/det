@@ -1,6 +1,8 @@
 from contextlib import suppress
+from collections.abc import Callable
 from pathlib import Path
 
+from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import transforms
@@ -10,6 +12,23 @@ import yaml
 from det.data import create_dataloader
 from det.loss import YOLOLoss
 from det.model.yolo import YOLODetector
+
+
+def get_transform(image_size: int) -> Callable[..., torch.Tensor]:
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                [0.485, 0.456, 0.406],
+                [0.229, 0.224, 0.225],
+            ),  # ImageNet stats
+            # transforms.Normalize(
+            #     [0.94827438, 0.94827438, 0.94827438],
+            #     [0.21538803, 0.21538803, 0.21538803],
+            # ),  # CHC stats
+        ]
+    )
 
 
 def get_num_classes(dataset_dir: Path) -> int | None:
@@ -32,20 +51,7 @@ def train(
     grid_size: int = 20,
     num_workers: int = 0,
 ):
-    transform = transforms.Compose(
-        [
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            # transforms.Normalize(
-            #     [0.485, 0.456, 0.406],
-            #     [0.229, 0.224, 0.225],
-            # ),  # ImageNet stats
-            transforms.Normalize(
-                [0.94827438, 0.94827438, 0.94827438],
-                [0.21538803, 0.21538803, 0.21538803],
-            ),  # CHC stats
-        ]
-    )
+    transform = get_transform(image_size)
     num_classes = get_num_classes(dataset_dir) or num_classes
     if num_classes is None:
         raise ValueError(
@@ -103,6 +109,7 @@ def train(
             iou_threshold=0.3,
         )
         print(f"Validation metrics: {metrics}")
+    return model
 
 
 def train_one_epoch(model, criterion, optimizer, dataloader, device):
@@ -403,10 +410,17 @@ def compute_validation_metrics(predictions, ground_truths, iou_threshold=0.5):
     return {"precision": precision, "recall": recall, "f1_score": f1}
 
 
-def predict(model, inputs, conf_threshold=0.5, iou_threshold=0.5):
+def predict(model, inputs, conf_threshold=0.5, iou_threshold=0.5, image_size=640):
+    transform = get_transform(image_size)
+    modified_inputs = transform(inputs)
+    if modified_inputs.dim() == 3:
+        modified_inputs = modified_inputs.unsqueeze(0)
+    elif modified_inputs.dim() != 4:
+        raise ValueError("Wrong input dimension!")
+    modified_inputs = modified_inputs.to(model.device)
     with torch.no_grad():
         model.eval()
-        predictions = model(inputs)
+        predictions = model(modified_inputs)
         # Apply post-processing (e.g., NMS) to the predictions
         processed_predictions = []
         for pred in predictions:
@@ -418,6 +432,14 @@ def predict(model, inputs, conf_threshold=0.5, iou_threshold=0.5):
             )
             processed_predictions.append(filtered_pred)
         return processed_predictions
+
+
+def save_model(model, path):
+    torch.save(model, path)
+
+
+def load_model(model, path):
+    return model.load_state_dict(torch.load(path, weights_only=True))
 
 
 if __name__ == "__main__":
@@ -432,7 +454,7 @@ if __name__ == "__main__":
     image_size = 640
     # num_workers = 4
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    train(
+    model = train(
         model,
         dataset_dir,
         num_epochs,
@@ -441,3 +463,14 @@ if __name__ == "__main__":
         device,
         num_classes=16,
     )
+    images = list(dataset_dir.joinpath("images/train").iterdir())[-32:]
+    labels = [
+        dataset_dir / "labels" / "train" / img.with_suffix(".txt").name
+        for img in images
+    ]
+    for image, label in zip(images, labels):
+        img = Image.open(image).convert("RGB")
+        target = label.read_text() if label.exists() else None
+        out = predict(model, img, 0.8, 0.3)
+        print(out)
+        print("actual", target)

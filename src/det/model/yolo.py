@@ -14,6 +14,10 @@ class YOLODetector(nn.Module):
         self.backbone: nn.Module = YOLOBackbone(in_channels)
         self.detection_head: nn.Module = YOLODetectionHead(1024, num_classes, B)
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.detection_head(self.backbone(x))

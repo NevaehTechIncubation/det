@@ -141,7 +141,7 @@ def create_dataloader(
         train_subset, val_subset = None, None
     else:
         train_subdir, val_subdir = "train", "train"
-        train_subset, val_subset = slice(0, -32), slice(-32, None)
+        train_subset, val_subset = slice(0, 558), slice(558, None)
 
     train_dataloader = DataLoader(
         YOLODataset(
