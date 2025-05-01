@@ -463,6 +463,7 @@ if __name__ == "__main__":
         device,
         num_classes=16,
     )
+    save_model(model, Path("./last.pt"))
     images = list(dataset_dir.joinpath("images/train").iterdir())[-32:]
     labels = [
         dataset_dir / "labels" / "train" / img.with_suffix(".txt").name

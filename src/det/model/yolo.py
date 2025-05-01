@@ -8,11 +8,11 @@ from det.pipeline import Pipeline
 
 
 class YOLODetector(nn.Module):
-    def __init__(self, in_channels: int, num_classes: int, B: int = 3) -> None:
+    def __init__(self, in_channels: int, num_classes: int, num_boxes: int = 3) -> None:
         super(YOLODetector, self).__init__()
 
         self.backbone: nn.Module = YOLOBackbone(in_channels)
-        self.detection_head: nn.Module = YOLODetectionHead(1024, num_classes, B)
+        self.detection_head: nn.Module = YOLODetectionHead(1024, num_classes, num_boxes)
 
     @property
     def device(self):
