@@ -140,8 +140,13 @@ def create_dataloader(
         train_subdir, val_subdir = "train", "val"
         train_subset, val_subset = None, None
     else:
+        total_images = sum(1 for f in images_dir.rglob("*") if f.is_file())
+        train_val_split = int(total_images * 0.9)
         train_subdir, val_subdir = "train", "train"
-        train_subset, val_subset = slice(0, 558), slice(558, None)
+        train_subset, val_subset = (
+            slice(0, train_val_split),
+            slice(train_val_split, None),
+        )
 
     train_dataloader = DataLoader(
         YOLODataset(
