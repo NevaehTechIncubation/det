@@ -76,7 +76,11 @@ def train(
         num_workers,
     )
 
-    criterion = YOLOLoss(grid_size=grid_size, num_boxes=1, num_classes=16).to(device)
+    criterion = YOLOLoss(
+        grid_size=grid_size,
+        num_boxes=1,
+        num_classes=num_classes,
+    ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     print("Total:", sum(p.numel() for p in model.parameters()))
     print(
@@ -447,10 +451,10 @@ if __name__ == "__main__":
     model = None
 
     dataset_dir = Path(
-        "/home/nevaeh/projects/det/master_data/"
+        "/home/nevaeh/projects/det/master_data_full/"
     )  # Replace with your dataset path
     num_epochs = 50
-    batch_size = 4
+    batch_size = 32
     image_size = 640
     # num_workers = 4
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -461,7 +465,6 @@ if __name__ == "__main__":
         batch_size,
         image_size,
         device,
-        num_classes=16,
     )
     save_model(model, Path("./last.pt"))
     images = list(dataset_dir.joinpath("images/train").iterdir())[-32:]
