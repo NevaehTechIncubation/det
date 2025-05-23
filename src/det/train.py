@@ -442,37 +442,45 @@ def save_model(model, path):
     torch.save(model, path)
 
 
-def load_model(model, path):
-    return model.load_state_dict(torch.load(path, weights_only=True))
+def load_model(path):
+    return torch.load(path, map_location=torch.device("cpu"), weights_only=False)
 
 
 if __name__ == "__main__":
     # Example usage
     model = None
 
+    # dataset_dir = Path(
+    #     "/home/nevaeh/projects/det/master_data_full/"
+    # )  # Replace with your dataset path
     dataset_dir = Path(
-        "/home/nevaeh/projects/det/master_data_full/"
+        "/home/sayandip-dutta/github/pylang/det/dataset_dir/"
     )  # Replace with your dataset path
-    num_epochs = 50
-    batch_size = 32
-    image_size = 640
-    # num_workers = 4
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = train(
-        model,
-        dataset_dir,
-        num_epochs,
-        batch_size,
-        image_size,
-        device,
-    )
-    save_model(model, Path("./last.pt"))
+    # num_epochs = 50
+    # batch_size = 32
+    # image_size = 640
+    # # num_workers = 4
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    # model = train(
+    #     model,
+    #     dataset_dir,
+    #     num_epochs,
+    #     batch_size,
+    #     image_size,
+    #     device,
+    # )
+    # save_model(model, Path("./last.pt"))
+    num_classes = get_num_classes(dataset_dir) or 28
+    assert isinstance(num_classes, int)
+    # model = YOLODetector(3, num_classes)
+    model = load_model(Path("./last.pt"))
     images = list(dataset_dir.joinpath("images/train").iterdir())[-32:]
     labels = [
         dataset_dir / "labels" / "train" / img.with_suffix(".txt").name
         for img in images
     ]
     for image, label in zip(images, labels):
+        print(image)
         img = Image.open(image).convert("RGB")
         target = label.read_text() if label.exists() else None
         out = predict(model, img, 0.8, 0.3)
